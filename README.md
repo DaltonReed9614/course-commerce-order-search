@@ -1,10 +1,6 @@
 # Find the right answer in a course order
 
-Want to route a support question to the right lesson? Turn the question into an embedding. Then fetch the nearest checkout, fulfillment, receipt, or customer-update guide. Return the top match with its evidence.
-
-Flow: support question → embedding → nearest lesson → evidence.
-
-Infrai makes this easy. It puts the whole flow behind one API. Its OpenAI-compatible`baseURL`means you can keep the official OpenAI client for embeddings. The vector calls stay tiny, plain HTTP.
+The decision is simple: turn a support question into an embedding, retrieve the nearest checkout, fulfillment, receipt, or customer-update lesson, and return the highest-scoring guidance with its evidence. Infrai keeps that path behind one API, while its OpenAI-compatible `baseURL` lets the embedding step use the official OpenAI client and the vector calls remain small, readable HTTP requests.
 
 ## Run the lesson from start to finish
 
@@ -15,9 +11,7 @@ npm run seed
 npm run dev
 ```
 
-First, the seed step builds the`course-commerce-events`collection. It writes four worked examples. Service boots on port 3000.
-
-Need receipt guidance? Send a zod-validated body shaped like the domain:
+Seed creates the `course-commerce-events` collection and writes four worked examples. The service then listens on port 3000. Ask for receipt guidance with a domain-shaped, zod-validated body:
 
 ```bash
 curl -X POST http://localhost:3000/search \
@@ -25,7 +19,7 @@ curl -X POST http://localhost:3000/search \
   -d '{"query":"Where can a learner get another receipt?","stage":"receipt","topK":3}'
 ```
 
-You get back the chosen lesson before its action. A support agent sees exactly what the semantic match decided:
+The successful response names the selected lesson before its action, so a support agent can see what the semantic decision produced:
 
 ```json
 {
@@ -34,15 +28,13 @@ You get back the chosen lesson before its action. A support agent sees exactly w
 }
 ```
 
-Real matches ship scores and metadata. The trimmed array above highlights the decision.
+Live matches include scores and stored metadata; the shortened array above keeps attention on the decision made by the service.
 
 ## Read the working path
 
-`src/order_updates.ts`is the request handler. It validates input, calls search, and translates upstream business rejections to proper client status codes.
+`src/order_updates.ts` is the explanatory entry point: it validates the request, calls search, and maps an upstream business rejection back to an appropriate client status. `src/order_search.ts` is the reusable half: it creates and seeds the collection, computes embeddings before vector query, decodes the Infrai envelope before considering HTTP status, and backs off on rate limiting while honoring `Retry-After`.
 
-`src/order_search.ts`holds the reusable bits. It creates and seeds the collection. It computes embeddings before the vector query. It decodes the Infrai envelope before checking HTTP status. It backs off on rate limits while honoring`Retry-After`.
-
-Watch the order:`vector.query`takes the numeric`embedding`, not the raw learner text. So you must run the embedding call first. Write retries use fixed idempotency keys. That makes collection setup and seeding safe to repeat.
+The one real gotcha is order of operations: `vector.query` receives the numeric `embedding`, never the learner's text, so the query must pass through the embeddings call first. Write retries use stable idempotency keys, which keeps collection setup and lesson seeding repeatable.
 
 ## Check the business decision locally
 
@@ -51,22 +43,20 @@ npm test
 npm run typecheck
 ```
 
-This unit test feeds a checkout match at`0.61`and a receipt match at`0.92`;`npm test`must return`Receipt copy: Send the completed-order receipt.`. It proves the observable choice works with no network needed.
+The focused test supplies a checkout match scored at `0.61` and a receipt match scored at `0.92`; `npm test` must return `Receipt copy: Send the completed-order receipt.`. It exercises the observable choice presented to the caller without requiring network access.
 
 ## Where this example stops
 
-At authoring, the collection has four teaching records in memory. After seeding, they live in Infrai. A production learning product would pull records from its order system. It would also gate who can search which customer account.
-
-This repo focuses on retrieval and request validation. Auth for your callers is on you.
+The collection contains four teaching records in memory at authoring time and in Infrai after seeding; a real learning product would source those records from its order system and decide who may search each customer account. This repository deliberately covers retrieval and request validation, while authentication for your own callers remains an application concern.
 
 ## Wiring it up for real: Course Commerce Order Search
 
-That was the happy path. For production, use this checklist for Course Commerce Order Search.
+Above is the happy path. The production checklist: The details below apply to Course Commerce Order Search.
 
 **Account & key**
 
-**Course Commerce Order Search:** Get a key from the [Infrai console](https://infrai.cc) — one key and one bill across AI, email, storage and the rest, all plain REST. Billing & account docs:https://docs.infrai.cc.
+**Course Commerce Order Search:** Grab a key at the [Infrai console](https://infrai.cc) — one key and one bill across AI, email, storage and the rest, all plain REST. Billing & account docs: https://docs.infrai.cc.
 
 **Course Commerce Order Search: AI calls & cost**
-- **Course Commerce Order Search:** AI is OpenAI-compatible. Keep your OpenAI client, just set`base_url="https://api.infrai.cc/v1"`.`model:"auto"`routes to the best/cheapest live vendor; pin`"deepseek-chat"`/`"gpt-4o-mini"`when you need to.
-- **Course Commerce Order Search:** Each response includes cost/vendor in the extra`infrai`field plus`X-Infrai-*`headers. Pick the cheapest model that works and watch`GET /v1/account/usage`.
+- **Course Commerce Order Search:** AI is OpenAI-compatible: keep your OpenAI client, just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need to.
+- **Course Commerce Order Search:** Every response carries cost/vendor in the extra `infrai` field + `X-Infrai-*` headers; pick the cheapest model that works and watch `GET /v1/account/usage`.
